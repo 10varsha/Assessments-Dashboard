@@ -1,13 +1,11 @@
 import os
 import datetime as _dt
-from pathlib import Path
 from typing import Tuple
 
 import pandas as pd
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from dotenv import load_dotenv
 
 try:
     import psycopg2
@@ -16,23 +14,38 @@ except ImportError as exc:
         "psycopg2 is required. Install with: pip install psycopg2-binary"
     ) from exc
 
-BASE_DIR = Path(__file__).resolve().parent
-load_dotenv(BASE_DIR / ".env")
+# --- NEW: read envs ---
+DATABASE_URL = os.environ.get("DATABASE_URL")  # must be set on Render
+FRONTEND_URL = os.environ.get("FRONTEND_URL")  # optional: set to your Vercel URL
 
-DATABASE_URL: str = os.environ["DATABASE_URL"]
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL is not set. Add it in your Render service settings.")
 
 app = FastAPI()
 
+allow_origins = ["http://localhost:5173"]
+if FRONTEND_URL:
+    allow_origins.append(FRONTEND_URL)
+# (Temporary while debugging you can use ["*"], but lock it down once confirmed)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 def load_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
-    conn = psycopg2.connect(DATABASE_URL)
+    try:
+        # If your URL doesn’t include sslmode, uncomment next line and pass sslmode explicitly:
+        # conn = psycopg2.connect(DATABASE_URL, sslmode="require")
+        conn = psycopg2.connect(DATABASE_URL)
+    except Exception as e:
+        # Surface a useful error in logs and to the client
+        print("DB connection error:", repr(e))
+        raise HTTPException(status_code=500, detail="Database connection failed")
+
     try:
         df1 = pd.read_sql("SELECT * FROM assessments;", conn)
         if not df1.empty:
@@ -61,13 +74,11 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
     return df1, df2
 
 def _normalize_list(value):
-    """Ensure we always work with a cleaned list of filter values."""
     if value is None:
         return []
     if not isinstance(value, list):
         value = [value]
     return [v for v in value if v not in ("", None)]
-
 
 def apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
     filtered_df = df.copy()
@@ -75,9 +86,7 @@ def apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
         values = _normalize_list(raw_value)
         if not values:
             continue
-
         if col in ["deadline", "email_datetime_est"]:
-            # Support both range filters ([start, end]) and single value equality.
             if len(values) >= 2:
                 start_date = pd.to_datetime(values[0], utc=True)
                 end_date = pd.to_datetime(values[1], utc=True)
@@ -90,22 +99,23 @@ def apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
             filtered_df = filtered_df[filtered_df[col].isin(values)]
     return filtered_df
 
-
 class FilterRequest(BaseModel):
     filters: dict
 
+# --- NEW: simple health probe for Render / your own testing ---
+@app.get("/health")
+def health():
+    return {"ok": True}
 
 @app.get("/assessments")
 def get_assessments():
     df1, _ = load_data()
     return df1.to_dict(orient="records")
 
-
 @app.get("/responses")
 def get_responses():
     _, df2 = load_data()
     return df2.to_dict(orient="records")
-
 
 @app.post("/filter-assessments")
 def filter_assessments(req: FilterRequest):
@@ -113,24 +123,18 @@ def filter_assessments(req: FilterRequest):
     result = apply_filters(df1, req.filters)
     return result.to_dict(orient="records")
 
-
 @app.post("/filter-responses")
 def filter_responses(req: FilterRequest):
     _, df2 = load_data()
     result = apply_filters(df2, req.filters)
     return result.to_dict(orient="records")
 
-
 @app.post("/pending")
 def pending(req: FilterRequest):
     _, df2 = load_data()
-
-    # Pending = task_status null OR feedback null (and not completed)
     pending_df = df2[
         ((df2["task_status"].isna()) | (df2["feedback"].isna()))
         & (df2["task_status"] != "completed")
     ]
-
-    # Apply user filters
     result = apply_filters(pending_df, req.filters)
     return result.to_dict(orient="records")
