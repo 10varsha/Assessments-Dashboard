@@ -2,6 +2,7 @@ import axios from "axios";
 import { useEffect, useState } from "react";
 import Filters from "../components/Filters.jsx";
 import DataTable from "../components/DataTable.jsx";
+import { API_BASE } from "../config";
 
 export default function Assessments() {
   const [data, setData] = useState([]);
@@ -12,7 +13,7 @@ export default function Assessments() {
   useEffect(() => {
     const fetchAssessments = async () => {
       try {
-        const res = await axios.get("http://localhost:8000/assessments");
+        const res = await axios.get(`${API_BASE}/assessments`);
         const rows = res.data || [];
         setData(rows);
 
@@ -39,8 +40,8 @@ export default function Assessments() {
 
   const applyFilters = async () => {
     try {
-      const res = await axios.post("http://localhost:8000/filter-assessments", {
-        filters,
+      const res = await axios.post(`${API_BASE}/filter-assessments`, { 
+        filters 
       });
       setData(res.data || []);
     } catch (err) {
