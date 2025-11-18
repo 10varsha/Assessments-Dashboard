@@ -8,7 +8,7 @@ export default function Assessments() {
   const [data, setData] = useState([]);
   const [filters, setFilters] = useState({});
   const [filterOptions, setFilterOptions] = useState({});
-  const [loading, setLoading] = useState(true);   // ⬅️ NEW
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchAssessments = async () => {
@@ -19,19 +19,19 @@ export default function Assessments() {
 
         const options = {};
         rows.forEach((row) => {
-          Object.keys(row).forEach((k) => {
-            if (!options[k]) options[k] = new Set();
-            options[k].add(row[k]);
+          Object.keys(row).forEach((key) => {
+            if (!options[key]) options[key] = new Set();
+            options[key].add(row[key]);
           });
         });
-        Object.keys(options).forEach((k) => {
-          options[k] = Array.from(options[k]);
+        Object.keys(options).forEach((key) => {
+          options[key] = Array.from(options[key]);
         });
         setFilterOptions(options);
       } catch (err) {
         console.error("Error fetching assessments:", err);
       } finally {
-        setLoading(false);      // ⬅️ stop loading
+        setLoading(false);
       }
     };
 
@@ -40,8 +40,8 @@ export default function Assessments() {
 
   const applyFilters = async () => {
     try {
-      const res = await axios.post(`${API_BASE}/filter-assessments`, { 
-        filters 
+      const res = await axios.post(`${API_BASE}/filter-assessments`, {
+        filters,
       });
       setData(res.data || []);
     } catch (err) {
@@ -51,9 +51,7 @@ export default function Assessments() {
 
   return (
     <div className="w-full h-full flex flex-col">
-      <h2 className="text-2xl font-semibold text-center mb-8">
-        Assessments
-      </h2>
+      <h2 className="text-2xl font-semibold text-center mb-8">Assessments</h2>
 
       <div className="w-full mb-8">
         <Filters
@@ -72,7 +70,6 @@ export default function Assessments() {
         </button>
       </div>
 
-      {/* SAME loading design as other pages */}
       <div className="flex-1 flex">
         {loading ? (
           <div className="w-full flex-1 flex justify-center items-center">

@@ -2,6 +2,7 @@ import axios from "axios";
 import { useEffect, useState } from "react";
 import Filters from "../components/Filters.jsx";
 import DataTable from "../components/DataTable.jsx";
+import { API_BASE } from "../config";
 
 export default function PendingAssessments() {
   const [data, setData] = useState([]);
@@ -56,7 +57,6 @@ export default function PendingAssessments() {
 
   return (
     <div className="w-full h-full flex flex-col">
-
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold">Pending Assessments</h2>
         <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -90,7 +90,6 @@ export default function PendingAssessments() {
           <DataTable data={data} />
         )}
       </div>
-
     </div>
   );
 }
